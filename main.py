@@ -18,7 +18,7 @@ class Player(BaseModel):
     rank: str
     role1: str
     role2: str
-    rank_value: Optional[int] = None  # Add this line to include rank_value
+    rank_value: Optional[int] = None
 
 class TeamRequest(BaseModel):
     players: List[Player]
@@ -57,22 +57,43 @@ def create_teams(request: TeamRequest):
     team2 = {role: None for role in roles}
 
     def assign_roles(team, players, roles):
-        unassigned_players = []
+        assigned_players = set()
+
+        # Assign primary roles first, ensuring higher-ranked players get their primary roles
         for role in roles:
             for player in players:
                 if (team[role] is None and
-                    (player.role1 == role or player.role2 == role) and
-                    player not in team.values()):
+                    player.role1 == role and
+                    player not in assigned_players):
                     team[role] = player
+                    assigned_players.add(player)
                     break
+
+        # Assign secondary roles
+        for role in roles:
+            for player in players:
+                if (team[role] is None and
+                    player.role2 == role and
+                    player not in assigned_players):
+                    team[role] = player
+                    assigned_players.add(player)
+                    break
+
+        # Assign remaining players to any unfilled roles
+        for role in roles:
             if team[role] is None:
                 for player in players:
-                    if player not in team.values():
+                    if player not in assigned_players:
                         team[role] = player
+                        assigned_players.add(player)
                         break
-        return [player for player in players if player not in team.values()]
 
+        return [player for player in players if player not in assigned_players]
+
+    # Assign roles to Team 1
     unassigned_players = assign_roles(team1, players, roles)
+
+    # Assign roles to Team 2
     assign_roles(team2, unassigned_players, roles)
 
     # Convert teams to list for response with assigned roles
