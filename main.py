@@ -75,6 +75,8 @@ def assign_roles(players, roles):
                     assigned_players.add(player.name)
                     break
 
+
+    
     # Adjust teams to maximize the average rank of team1
     def calculate_average_rank(team):
         total_rank = sum(player.rank_value for player in team.values() if player)
