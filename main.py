@@ -18,6 +18,7 @@ class Player(BaseModel):
     rank: str
     role1: str
     role2: str
+    exception: str
     rank_value: Optional[int] = None
 
 class TeamRequest(BaseModel):
