@@ -18,7 +18,7 @@ class Player(BaseModel):
     rank: str
     role1: str
     role2: str
-    exception: str
+    notPlay: Optional[str] = None
     rank_value: Optional[int] = None
 
 class TeamRequest(BaseModel):
@@ -31,8 +31,9 @@ rank_mapping = {
     'Silver4': 9, 'Silver3': 10, 'Silver2': 11, 'Silver1': 12,
     'Gold4': 13, 'Gold3': 14, 'Gold2': 15, 'Gold1': 16,
     'Platinum4': 17, 'Platinum3': 18, 'Platinum2': 19, 'Platinum1': 20,
-    'Diamond4': 21, 'Diamond3': 22, 'Diamond2': 23, 'Diamond1': 24,
-    'Master': 25, 'Grandmaster': 26, 'Challenger': 27
+    'Emerald4': 21, 'Emerald3': 22, 'Emerald2': 23, 'Emerald1': 24,
+    'Diamond4': 25, 'Diamond3': 26, 'Diamond2': 27, 'Diamond1': 28,
+    'Master': 29, 'Grandmaster': 30, 'Challenger': 31
 }
 
 def assign_roles(players, roles):
@@ -43,23 +44,27 @@ def assign_roles(players, roles):
     team2 = {role: None for role in roles}
     assigned_players = set()
 
+    # Helper function to check if a role is valid for a player
+    def is_valid_role(player, role):
+        return player.notPlay != role
+
     # Assign highest-ranked players to their main roles first
     for player in players:
         if player.name not in assigned_players:
-            if not team1[player.role1]:
+            if not team1[player.role1] and is_valid_role(player, player.role1):
                 team1[player.role1] = player
                 assigned_players.add(player.name)
-            elif not team2[player.role1]:
+            elif not team2[player.role1] and is_valid_role(player, player.role1):
                 team2[player.role1] = player
                 assigned_players.add(player.name)
 
     # Assign remaining players to their secondary roles if their main role has been taken
     for player in players:
         if player.name not in assigned_players:
-            if not team1[player.role2]:
+            if not team1[player.role2] and is_valid_role(player, player.role2):
                 team1[player.role2] = player
                 assigned_players.add(player.name)
-            elif not team2[player.role2]:
+            elif not team2[player.role2] and is_valid_role(player, player.role2):
                 team2[player.role2] = player
                 assigned_players.add(player.name)
 
@@ -67,17 +72,15 @@ def assign_roles(players, roles):
     for player in players:
         if player.name not in assigned_players:
             for role in roles:
-                if not team1[role]:
+                if not team1[role] and is_valid_role(player, role):
                     team1[role] = player
                     assigned_players.add(player.name)
                     break
-                elif not team2[role]:
+                elif not team2[role] and is_valid_role(player, role):
                     team2[role] = player
                     assigned_players.add(player.name)
                     break
 
-
-    
     # Adjust teams to maximize the average rank of team1
     def calculate_average_rank(team):
         total_rank = sum(player.rank_value for player in team.values() if player)
@@ -133,16 +136,16 @@ def create_teams(request: TeamRequest):
 # Example usage
 example_request = {
     "players": [
-        {"name": "Reni", "rank": "Diamond4", "role1": "Adc", "role2": "Mid"},
-        {"name": "Gjunti", "rank": "Diamond3", "role1": "Top", "role2": "Jungle"},
-        {"name": "Aaron", "rank": "Diamond4", "role1": "Top", "role2": "Jungle"},
-        {"name": "Sandy", "rank": "Master", "role1": "Mid", "role2": "Adc"},
-        {"name": "Merlin", "rank": "Platinum1", "role1": "Mid", "role2": "Jungle"},
-        {"name": "Chruune", "rank": "Diamond4", "role1": "Support", "role2": "Top"},
-        {"name": "Mäc", "rank": "Bronze4", "role1": "Support", "role2": "Jungle"},
-        {"name": "Albo", "rank": "Platinum4", "role1": "Adc", "role2": "Mid"},
-        {"name": "Arno", "rank": "Silver3", "role1": "Support", "role2": "Adc"},
-        {"name": "Joey", "rank": "Silver1", "role1": "Support", "role2": "Top"}
+        {"name": "Reni", "rank": "Diamond4", "role1": "Adc", "role2": "Mid", "notPlay": "Top"},
+        {"name": "Gjunti", "rank": "Diamond3", "role1": "Top", "role2": "Jungle", "notPlay": "Mid"},
+        {"name": "Aaron", "rank": "Diamond4", "role1": "Top", "role2": "Jungle", "notPlay": "Support"},
+        {"name": "Sandy", "rank": "Master", "role1": "Mid", "role2": "Adc", "notPlay": "Jungle"},
+        {"name": "Merlin", "rank": "Platinum1", "role1": "Mid", "role2": "Jungle", "notPlay": "Support"},
+        {"name": "Chruune", "rank": "Diamond4", "role1": "Support", "role2": "Top", "notPlay": "Adc"},
+        {"name": "Mäc", "rank": "Bronze4", "role1": "Support", "role2": "Jungle", "notPlay": "Mid"},
+        {"name": "Albo", "rank": "Platinum4", "role1": "Adc", "role2": "Mid", "notPlay": "Support"},
+        {"name": "Arno", "rank": "Silver3", "role1": "Support", "role2": "Adc", "notPlay": "Top"},
+        {"name": "Joey", "rank": "Silver1", "role1": "Support", "role2": "Top", "notPlay": "Jungle"}
     ],
     "roles": ["Top", "Jungle", "Mid", "Adc", "Support"]
 }
