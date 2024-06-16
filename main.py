@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
+import random
 
 app = FastAPI()
 
@@ -24,6 +25,7 @@ class Player(BaseModel):
 class TeamRequest(BaseModel):
     players: List[Player]
     roles: List[str]
+    mode: str
 
 rank_mapping = {
     'Iron4': 1, 'Iron3': 2, 'Iron2': 3, 'Iron1': 4,
@@ -36,19 +38,16 @@ rank_mapping = {
     'Master': 29, 'Grandmaster': 30, 'Challenger': 31
 }
 
-def assign_roles(players, roles):
-    # Sort players by rank descending
+def assign_roles_rank(players, roles):
     players.sort(key=lambda x: x.rank_value, reverse=True)
 
     team1 = {role: None for role in roles}
     team2 = {role: None for role in roles}
     assigned_players = set()
 
-    # Helper function to check if a role is valid for a player
     def is_valid_role(player, role):
         return player.notPlay != role
 
-    # Assign highest-ranked players to their main roles first
     for player in players:
         if player.name not in assigned_players:
             if not team1[player.role1] and is_valid_role(player, player.role1):
@@ -58,7 +57,6 @@ def assign_roles(players, roles):
                 team2[player.role1] = player
                 assigned_players.add(player.name)
 
-    # Assign remaining players to their secondary roles if their main role has been taken
     for player in players:
         if player.name not in assigned_players:
             if not team1[player.role2] and is_valid_role(player, player.role2):
@@ -68,7 +66,6 @@ def assign_roles(players, roles):
                 team2[player.role2] = player
                 assigned_players.add(player.name)
 
-    # Fill any remaining gaps with the best available players
     for player in players:
         if player.name not in assigned_players:
             for role in roles:
@@ -81,7 +78,6 @@ def assign_roles(players, roles):
                     assigned_players.add(player.name)
                     break
 
-    # Adjust teams to maximize the average rank of team1
     def calculate_average_rank(team):
         total_rank = sum(player.rank_value for player in team.values() if player)
         return total_rank / len(roles)
@@ -94,6 +90,49 @@ def assign_roles(players, roles):
             if team2[role] and team1[role]:
                 if team2[role].rank_value > team1[role].rank_value:
                     team1[role], team2[role] = team2[role], team1[role]
+                    break
+
+    return team1, team2
+
+def assign_roles_balanced(players, roles):
+    players.sort(key=lambda x: x.rank_value, reverse=True)
+    team1 = {role: None for role in roles}
+    team2 = {role: None for role in roles}
+    assigned_players = set()
+
+    def is_valid_role(player, role):
+        return player.notPlay != role
+
+    for player in players:
+        if player.name not in assigned_players:
+            for role in roles:
+                if not team1[role] and is_valid_role(player, role):
+                    team1[role] = player
+                    assigned_players.add(player.name)
+                    break
+                elif not team2[role] and is_valid_role(player, role):
+                    team2[role] = player
+                    assigned_players.add(player.name)
+                    break
+
+    return team1, team2
+
+def assign_roles_random(players, roles):
+    random.shuffle(players)
+    team1 = {role: None for role in roles}
+    team2 = {role: None for role in roles}
+    assigned_players = set()
+
+    for player in players:
+        if player.name not in assigned_players:
+            for role in roles:
+                if not team1[role]:
+                    team1[role] = player
+                    assigned_players.add(player.name)
+                    break
+                elif not team2[role]:
+                    team2[role] = player
+                    assigned_players.add(player.name)
                     break
 
     return team1, team2
@@ -118,12 +157,19 @@ def create_greeting():
 def create_teams(request: TeamRequest):
     players = request.players
     roles = request.roles
+    mode = request.mode
 
-    # Convert ranks to numerical values for sorting
     for player in players:
         player.rank_value = rank_mapping.get(player.rank, 0)
 
-    team1, team2 = assign_roles(players, roles)
+    if mode == 'Rank':
+        team1, team2 = assign_roles_rank(players, roles)
+    elif mode == 'Balanced':
+        team1, team2 = assign_roles_balanced(players, roles)
+    elif mode == 'Random':
+        team1, team2 = assign_roles_random(players, roles)
+    else:
+        return {"error": "Invalid mode"}
 
     if team1 is None or team2 is None:
         return {"error": "No optimal solution found."}
@@ -147,7 +193,8 @@ example_request = {
         {"name": "Arno", "rank": "Silver3", "role1": "Support", "role2": "Adc", "notPlay": "Top"},
         {"name": "Joey", "rank": "Silver1", "role1": "Support", "role2": "Top", "notPlay": "Jungle"}
     ],
-    "roles": ["Top", "Jungle", "Mid", "Adc", "Support"]
+    "roles": ["Top", "Jungle", "Mid", "Adc", "Support"],
+    "mode": "Balanced"
 }
 
 response = create_teams(TeamRequest(**example_request))
