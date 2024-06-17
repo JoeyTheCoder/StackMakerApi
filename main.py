@@ -1,8 +1,9 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
 import random
+import logging
 
 app = FastAPI()
 
@@ -13,6 +14,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+logging.basicConfig(level=logging.INFO)
 
 class Player(BaseModel):
     name: str
@@ -38,115 +41,68 @@ rank_mapping = {
     'Master': 29, 'Grandmaster': 30, 'Challenger': 31
 }
 
-def assign_roles_rank(players, roles):
-    players.sort(key=lambda x: x.rank_value, reverse=True)
-
-    team1 = {role: None for role in roles}
-    team2 = {role: None for role in roles}
+def assign_roles(players, roles, mode):
+    num_teams = len(players) // 5
+    teams = [{role: None for role in roles} for _ in range(num_teams)]
     assigned_players = set()
 
     def is_valid_role(player, role):
         return player.notPlay != role
 
-    for player in players:
-        if player.name not in assigned_players:
-            if not team1[player.role1] and is_valid_role(player, player.role1):
-                team1[player.role1] = player
-                assigned_players.add(player.name)
-            elif not team2[player.role1] and is_valid_role(player, player.role1):
-                team2[player.role1] = player
-                assigned_players.add(player.name)
+    if mode == 'Rank':
+        players.sort(key=lambda x: x.rank_value, reverse=True)
+    elif mode == 'Balanced':
+        players.sort(key=lambda x: x.rank_value, reverse=True)
+        balanced_teams(players, teams, roles, is_valid_role, assigned_players)
+    elif mode == 'Random':
+        random.shuffle(players)
 
     for player in players:
-        if player.name not in assigned_players:
-            if not team1[player.role2] and is_valid_role(player, player.role2):
-                team1[player.role2] = player
-                assigned_players.add(player.name)
-            elif not team2[player.role2] and is_valid_role(player, player.role2):
-                team2[player.role2] = player
-                assigned_players.add(player.name)
-
-    for player in players:
-        if player.name not in assigned_players:
+        for team in teams:
             for role in roles:
-                if not team1[role] and is_valid_role(player, role):
-                    team1[role] = player
+                if not team[role] and is_valid_role(player, role):
+                    team[role] = player
                     assigned_players.add(player.name)
                     break
-                elif not team2[role] and is_valid_role(player, role):
-                    team2[role] = player
-                    assigned_players.add(player.name)
+            if player.name in assigned_players:
+                break
+
+    for player in players:
+        if player.name not in assigned_players:
+            for team in teams:
+                for role in roles:
+                    if not team[role] and is_valid_role(player, role):
+                        team[role] = player
+                        assigned_players.add(player.name)
+                        break
+                if player.name in assigned_players:
                     break
 
-    def calculate_average_rank(team):
-        total_rank = sum(player.rank_value for player in team.values() if player)
-        return total_rank / len(roles)
+    return teams
 
-    team1_avg_rank = calculate_average_rank(team1)
-    team2_avg_rank = calculate_average_rank(team2)
-
-    if team1_avg_rank < team2_avg_rank:
+def balanced_teams(players, teams, roles, is_valid_role, assigned_players):
+    num_teams = len(teams)
+    for i, player in enumerate(players):
+        team_index = i % num_teams
         for role in roles:
-            if team2[role] and team1[role]:
-                if team2[role].rank_value > team1[role].rank_value:
-                    team1[role], team2[role] = team2[role], team1[role]
-                    break
+            if not teams[team_index][role] and is_valid_role(player, role):
+                teams[team_index][role] = player
+                assigned_players.add(player.name)
+                break
 
-    return team1, team2
-
-def assign_roles_balanced(players, roles):
-    players.sort(key=lambda x: x.rank_value, reverse=True)
-    team1 = {role: None for role in roles}
-    team2 = {role: None for role in roles}
-    assigned_players = set()
-
-    def is_valid_role(player, role):
-        return player.notPlay != role
-
-    for player in players:
-        if player.name not in assigned_players:
-            for role in roles:
-                if not team1[role] and is_valid_role(player, role):
-                    team1[role] = player
-                    assigned_players.add(player.name)
-                    break
-                elif not team2[role] and is_valid_role(player, role):
-                    team2[role] = player
-                    assigned_players.add(player.name)
-                    break
-
-    return team1, team2
-
-def assign_roles_random(players, roles):
-    random.shuffle(players)
-    team1 = {role: None for role in roles}
-    team2 = {role: None for role in roles}
-    assigned_players = set()
-
-    for player in players:
-        if player.name not in assigned_players:
-            for role in roles:
-                if not team1[role]:
-                    team1[role] = player
-                    assigned_players.add(player.name)
-                    break
-                elif not team2[role]:
-                    team2[role] = player
-                    assigned_players.add(player.name)
-                    break
-
-    return team1, team2
-
-def create_team_list(team):
-    team_list = []
-    for role, player in team.items():
-        if player:
-            team_list.append({
-                "name": player.name,
-                "rank": player.rank,
-                "assigned_role": role
-            })
-    return team_list
+def create_team_list(teams):
+    team_lists = []
+    for team in teams:
+        team_list = []
+        for role, player in team.items():
+            if player:
+                team_list.append({
+                    "name": player.name,
+                    "rank": player.rank,
+                    "assigned_role": role
+                })
+        team_lists.append(team_list)
+    return team_lists
 
 @app.get("/")
 def create_greeting():
@@ -154,48 +110,54 @@ def create_greeting():
     return greeting
 
 @app.post("/create-teams")
-def create_teams(request: TeamRequest):
-    players = request.players
-    roles = request.roles
-    mode = request.mode
+async def create_teams(request: Request):
+    data = await request.json()
+    logging.info(f"Received data: {data}")
+
+    try:
+        team_request = TeamRequest(**data)
+    except Exception as e:
+        logging.error(f"Error parsing request: {e}")
+        return {"error": str(e)}
+
+    players = team_request.players
+    roles = team_request.roles
+    mode = team_request.mode
 
     for player in players:
         player.rank_value = rank_mapping.get(player.rank, 0)
 
-    if mode == 'Rank':
-        team1, team2 = assign_roles_rank(players, roles)
-    elif mode == 'Balanced':
-        team1, team2 = assign_roles_balanced(players, roles)
-    elif mode == 'Random':
-        team1, team2 = assign_roles_random(players, roles)
-    else:
+    if mode not in ['Rank', 'Balanced', 'Random']:
         return {"error": "Invalid mode"}
 
-    if team1 is None or team2 is None:
-        return {"error": "No optimal solution found."}
+    teams = assign_roles(players, roles, mode)
 
-    team1_list = create_team_list(team1)
-    team2_list = create_team_list(team2)
+    team_lists = create_team_list(teams)
 
-    return {"team1": team1_list, "team2": team2_list}
+    return {"teams": team_lists}
 
 # Example usage
 example_request = {
     "players": [
-        {"name": "Reni", "rank": "Diamond4", "role1": "Adc", "role2": "Mid", "notPlay": "Top"},
-        {"name": "Gjunti", "rank": "Diamond3", "role1": "Top", "role2": "Jungle", "notPlay": "Mid"},
-        {"name": "Aaron", "rank": "Diamond4", "role1": "Top", "role2": "Jungle", "notPlay": "Support"},
-        {"name": "Sandy", "rank": "Master", "role1": "Mid", "role2": "Adc", "notPlay": "Jungle"},
-        {"name": "Merlin", "rank": "Platinum1", "role1": "Mid", "role2": "Jungle", "notPlay": "Support"},
+        {"name": "Merlin", "rank": "Emerald2", "role1": "Mid", "role2": "Jungle", "notPlay": "Support"},
+        {"name": "Reni", "rank": "Emerald3", "role1": "Adc", "role2": "Top", "notPlay": "Jungle"},
+        {"name": "Indi", "rank": "Diamond4", "role1": "Jungle", "role2": "Top", "notPlay": ""},
+        {"name": "Mäc", "rank": "Bronze4", "role1": "Support", "role2": "Jungle", "notPlay": ""},
+        {"name": "Aaron", "rank": "Emerald1", "role1": "Top", "role2": "Jungle", "notPlay": ""},
+        {"name": "Joey", "rank": "Gold3", "role1": "Support", "role2": "Mid", "notPlay": "Jungle"},
+        {"name": "Arno", "rank": "Silver3", "role1": "Support", "role2": "Adc", "notPlay": "Jungle"},
+        {"name": "Sandy", "rank": "Master", "role1": "Mid", "role2": "Jungle", "notPlay": "Top"},
+        {"name": "Albo", "rank": "Platinum1", "role1": "Adc", "role2": "Mid", "notPlay": ""},
         {"name": "Chruune", "rank": "Diamond4", "role1": "Support", "role2": "Top", "notPlay": "Adc"},
-        {"name": "Mäc", "rank": "Bronze4", "role1": "Support", "role2": "Jungle", "notPlay": "Mid"},
-        {"name": "Albo", "rank": "Platinum4", "role1": "Adc", "role2": "Mid", "notPlay": "Support"},
-        {"name": "Arno", "rank": "Silver3", "role1": "Support", "role2": "Adc", "notPlay": "Top"},
-        {"name": "Joey", "rank": "Silver1", "role1": "Support", "role2": "Top", "notPlay": "Jungle"}
+        {"name": "1", "rank": "Iron1", "role1": "Top", "role2": "Jungle", "notPlay": ""},
+        {"name": "2", "rank": "Iron3", "role1": "Jungle", "role2": "Mid", "notPlay": ""},
+        {"name": "3", "rank": "Iron4", "role1": "Mid", "role2": "Adc", "notPlay": ""},
+        {"name": "4", "rank": "Iron4", "role1": "Adc", "role2": "Support", "notPlay": ""},
+        {"name": "5", "rank": "Iron4", "role1": "Support", "role2": "Top", "notPlay": ""}
     ],
     "roles": ["Top", "Jungle", "Mid", "Adc", "Support"],
     "mode": "Balanced"
 }
 
-response = create_teams(TeamRequest(**example_request))
+response = create_teams(example_request)
 print(response)
