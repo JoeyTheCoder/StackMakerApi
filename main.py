@@ -31,15 +31,16 @@ class TeamRequest(BaseModel):
     mode: str
 
 rank_mapping = {
-    'Iron4': 1, 'Iron3': 2, 'Iron2': 3, 'Iron1': 4,
-    'Bronze4': 5, 'Bronze3': 6, 'Bronze2': 7, 'Bronze1': 8,
-    'Silver4': 9, 'Silver3': 10, 'Silver2': 11, 'Silver1': 12,
-    'Gold4': 13, 'Gold3': 14, 'Gold2': 15, 'Gold1': 16,
-    'Platinum4': 17, 'Platinum3': 18, 'Platinum2': 19, 'Platinum1': 20,
-    'Emerald4': 21, 'Emerald3': 22, 'Emerald2': 23, 'Emerald1': 24,
-    'Diamond4': 25, 'Diamond3': 26, 'Diamond2': 27, 'Diamond1': 28,
+    'Iron 4': 1, 'Iron 3': 2, 'Iron 2': 3, 'Iron 1': 4,
+    'Bronze 4': 5, 'Bronze 3': 6, 'Bronze 2': 7, 'Bronze 1': 8,
+    'Silver 4': 9, 'Silver 3': 10, 'Silver 2': 11, 'Silver 1': 12,
+    'Gold 4': 13, 'Gold 3': 14, 'Gold 2': 15, 'Gold 1': 16,
+    'Platinum 4': 17, 'Platinum 3': 18, 'Platinum 2': 19, 'Platinum 1': 20,
+    'Emerald 4': 21, 'Emerald 3': 22, 'Emerald 2': 23, 'Emerald 1': 24,
+    'Diamond 4': 25, 'Diamond 3': 26, 'Diamond 2': 27, 'Diamond 1': 28,
     'Master': 29, 'Grandmaster': 30, 'Challenger': 31
 }
+
 
 def assign_roles(players, roles, mode):
     num_teams = len(players) // 5
@@ -235,11 +236,12 @@ async def create_teams(request: Request):
     for team in team_lists:
         if len(team) != len(roles):
             logging.error("Failed to create valid teams. Not all roles could be filled.")
-            return {"error": "Failed to create valid teams. Not all roles could be filled."}
+            return {"error": "Failed to create valid teams. Not all roles could be filled. Please consider changing some constraints. This will be fixed with the next version of StackMaker"}
 
     logging.info(f"Returning teams: {team_lists}")
 
     return {"teams": team_lists}
+
 
 # Example usage
 example_request = {
