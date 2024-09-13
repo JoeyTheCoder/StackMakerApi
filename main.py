@@ -1,9 +1,7 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict
 from fastapi.middleware.cors import CORSMiddleware
-import random
-import logging
 
 app = FastAPI()
 
@@ -15,21 +13,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-logging.basicConfig(level=logging.INFO)
-
 class Player(BaseModel):
     name: str
     rank: str
     role1: str
     role2: str
-    notPlay: Optional[str] = None
+    cant_play: Optional[str] = None
     rank_value: Optional[int] = None
 
 class TeamRequest(BaseModel):
     players: List[Player]
     roles: List[str]
-    mode: str
+    mode: str  # 'rank', 'balanced', or 'random'
 
+# Define a rank mapping to convert ranks to numerical values
 rank_mapping = {
     'Iron 4': 1, 'Iron 3': 2, 'Iron 2': 3, 'Iron 1': 4,
     'Bronze 4': 5, 'Bronze 3': 6, 'Bronze 2': 7, 'Bronze 1': 8,
@@ -41,227 +38,110 @@ rank_mapping = {
     'Master': 29, 'Grandmaster': 30, 'Challenger': 31
 }
 
-
-def assign_roles(players, roles, mode):
-    num_teams = len(players) // 5
-    teams = [{role: None for role in roles} for _ in range(num_teams)]
-    assigned_players = set()
-
-    def is_valid_role(player, role):
-        return player.notPlay != role
-
-    if mode == 'Rank':
-        players.sort(key=lambda x: x.rank_value, reverse=True)
-        assign_ranked_teams(players, teams, roles, is_valid_role, assigned_players)
-    elif mode == 'Balanced':
-        players.sort(key=lambda x: x.rank_value, reverse=True)
-        balanced_teams(players, teams, roles, is_valid_role, assigned_players)
-    elif mode == 'Random':
-        random.shuffle(players)
-        assign_random_teams(players, teams, roles, is_valid_role, assigned_players)
-
-    # Call the reassign_invalid_roles function to correct any invalid role assignments
-    if not reassign_invalid_roles(players, teams, roles, is_valid_role, assigned_players):
-        logging.error("Failed to create valid teams. Not all roles could be filled.")
-        return {"error": "Failed to create valid teams. Not all roles could be filled."}
-
-    return teams
-
-def assign_ranked_teams(players, teams, roles, is_valid_role, assigned_players):
-    logging.info("Assigning ranked teams...")
-    # Assign primary roles first
-    for player in players:
-        for team in teams:
-            if team[player.role1] is None and is_valid_role(player, player.role1):
-                team[player.role1] = player
-                assigned_players.add(player.name)
-                break
-
-    # Assign secondary roles next
-    for player in players:
-        if player.name not in assigned_players:
-            for team in teams:
-                if team[player.role2] is None and is_valid_role(player, player.role2):
-                    team[player.role2] = player
-                    assigned_players.add(player.name)
-                    break
-
-    # Fill in any remaining roles
-    fill_remaining_roles(players, teams, roles, assigned_players, is_valid_role)
-
-def balanced_teams(players, teams, roles, is_valid_role, assigned_players):
-    logging.info("Assigning balanced teams...")
-    num_teams = len(teams)
-    team_ranks = [0] * num_teams
-    
-    for player in players:
-        min_team_index = team_ranks.index(min(team_ranks))
-        for role in roles:
-            if teams[min_team_index][role] is None and is_valid_role(player, role):
-                teams[min_team_index][role] = player
-                team_ranks[min_team_index] += player.rank_value
-                assigned_players.add(player.name)
-                break
-
-    # Fill in any remaining roles
-    fill_remaining_roles(players, teams, roles, assigned_players, is_valid_role)
-
-def assign_random_teams(players, teams, roles, is_valid_role, assigned_players):
-    logging.info("Assigning random teams...")
-    # Assign players randomly
-    for player in players:
-        for team in teams:
-            for role in roles:
-                if team[role] is None and is_valid_role(player, role):
-                    team[role] = player
-                    assigned_players.add(player.name)
-                    break
-            if player.name in assigned_players:
-                break
-
-    # Fill in any remaining roles
-    fill_remaining_roles(players, teams, roles, assigned_players, is_valid_role)
-
-def fill_remaining_roles(players, teams, roles, assigned_players, is_valid_role):
-    logging.info("Filling remaining roles...")
-    for team in teams:
-        for role in roles:
-            if team[role] is None:
-                for player in players:
-                    if player.name not in assigned_players and is_valid_role(player, role):
-                        team[role] = player
-                        assigned_players.add(player.name)
-                        break
-
-def reassign_invalid_roles(players, teams, roles, is_valid_role, assigned_players):
-    logging.info("Reassigning invalid roles...")
-    unassigned_players = []
-
-    for team in teams:
-        for role, player in team.items():
-            if player and not is_valid_role(player, role):
-                logging.info(f"Player {player.name} cannot play {role}. Reassigning...")
-                assigned_players.remove(player.name)
-                unassigned_players.append(player)
-                team[role] = None
-
-    if not unassigned_players:
-        return True
-
-    for player in unassigned_players:
-        assigned = False
-        for team in teams:
-            for role in roles:
-                if team[role] is None and is_valid_role(player, role):
-                    team[role] = player
-                    assigned_players.add(player.name)
-                    assigned = True
-                    break
-            if assigned:
-                break
-
-    # If players are still unassigned, try swapping roles within the team
-    for player in unassigned_players:
-        if player.name not in assigned_players:
-            for team in teams:
-                for role in roles:
-                    if team[role] is None:
-                        for existing_role, existing_player in team.items():
-                            if existing_player and is_valid_role(existing_player, role):
-                                team[role] = existing_player
-                                team[existing_role] = player
-                                assigned_players.add(player.name)
-                                break
-                        if player.name in assigned_players:
-                            break
-                if player.name in assigned_players:
-                    break
-
-    # Final check to see if all roles are filled
-    all_roles_filled = all(len([player for player in team.values() if player is not None]) == len(roles) for team in teams)
-
-    if not all_roles_filled:
-        logging.error(f"Final roles could not be filled for players: {[player.name for player in unassigned_players if player.name not in assigned_players]}")
-
-    return all_roles_filled
-
-def create_team_list(teams):
-    team_lists = []
-    for team in teams:
-        team_list = []
-        for role, player in team.items():
-            if player:
-                team_list.append({
-                    "name": player.name,
-                    "rank": player.rank,
-                    "assigned_role": role
-                })
-        team_lists.append(team_list)
-    return team_lists
-
 @app.get("/")
 def create_greeting():
     greeting = "FFG StackMaker"
     return greeting
 
+# Function to ensure all roles are filled in both teams
+def fill_missing_roles(team1: Dict[str, Optional[Player]], team2: Dict[str, Optional[Player]], players: List[Player], roles: List[str]):
+    unassigned_players = [p for p in players if p not in team1.values() and p not in team2.values()]
+
+    for role in roles:
+        # Fill missing roles in Team 1
+        if not team1[role]:
+            assign_to_role(unassigned_players, team1, role)
+        # Fill missing roles in Team 2
+        if not team2[role]:
+            assign_to_role(unassigned_players, team2, role)
+
+# Helper function to assign the highest-ranked unassigned player to a missing role
+def assign_to_role(unassigned_players: List[Player], team: Dict[str, Optional[Player]], role: str):
+    for player in unassigned_players:
+        if role != player.cant_play:
+            team[role] = player
+            unassigned_players.remove(player)
+            break
+
+# Helper function to re-evaluate and swap roles to optimize for highest-ranked players
+def reevaluate_and_swap_roles(team: Dict[str, Optional[Player]], players: List[Player], roles: List[str]):
+    for role in roles:
+        assigned_player = team.get(role)
+        for player in players:
+            if player and player.rank_value > (assigned_player.rank_value if assigned_player else 0):
+                if (player.role1 == role or player.role2 == role) and player not in team.values():
+                    # Swap the higher-ranked player in, and reassign the current player
+                    unassigned_player = team[role]
+                    team[role] = player
+                    players.append(unassigned_player)
+                    players.remove(player)
+                    break
+
+# Function to assign a player to a team role, with priority based on rank
+def assign_player_with_priority(team: Dict[str, Optional[Player]], player: Player, role: str) -> bool:
+    if not team[role]:
+        team[role] = player
+        return True
+    # If the role is already taken, replace the lower-ranked player if the current player has a higher rank
+    elif team[role].rank_value < player.rank_value:
+        unassigned_player = team[role]
+        team[role] = player
+        return unassigned_player
+    return False
+
 @app.post("/create-teams")
-async def create_teams(request: Request):
-    data = await request.json()
-    logging.info(f"Received data: {data}")
+def create_teams(request: TeamRequest):
+    print("Incoming request:", request.dict())
+    
+    players = request.players
+    roles = request.roles
+    mode = request.mode.lower()
 
-    try:
-        team_request = TeamRequest(**data)
-    except Exception as e:
-        logging.error(f"Error parsing request: {e}")
-        return {"error": str(e)}
-
-    players = team_request.players
-    roles = team_request.roles
-    mode = team_request.mode
-
+    # Convert ranks to numerical values for sorting
     for player in players:
         player.rank_value = rank_mapping.get(player.rank, 0)
 
-    if mode not in ['Rank', 'Balanced', 'Random']:
-        return {"error": "Invalid mode"}
+    # Sort players by rank value from highest to lowest for 'rank' mode
+    if mode == 'rank':
+        players.sort(key=lambda x: x.rank_value, reverse=True)
 
-    teams = assign_roles(players, roles, mode)
+    # Initialize empty teams
+    team1: Dict[str, Optional[Player]] = {role: None for role in roles}
+    team2: Dict[str, Optional[Player]] = {role: None for role in roles}
 
-    if isinstance(teams, dict) and "error" in teams:
-        return teams
+    # First pass: Try to place the top 5 ranked players in Team 1 with priority
+    for player in players[:5]:
+        if player and not assign_player_with_priority(team1, player, player.role1):
+            assign_player_with_priority(team1, player, player.role2)
 
-    team_lists = create_team_list(teams)
+    # Re-evaluate roles in Team 1 to ensure highest priority based on rank
+    reevaluate_and_swap_roles(team1, players, roles)
 
-    # Additional check to ensure teams are valid
-    for team in team_lists:
-        if len(team) != len(roles):
-            logging.error("Failed to create valid teams. Not all roles could be filled.")
-            return {"error": "Failed to create valid teams. Not all roles could be filled. Please consider changing some constraints. This will be fixed with the next version of StackMaker"}
+    # Second pass: Place remaining players in Team 2 and handle remaining Team 1 slots if needed
+    for player in players[5:]:
+        if player and not assign_player_with_priority(team2, player, player.role1):
+            assign_player_with_priority(team2, player, player.role2)
 
-    logging.info(f"Returning teams: {team_lists}")
+    # Ensure every role is filled exactly once in both teams
+    fill_missing_roles(team1, team2, players, roles)
 
-    return {"teams": team_lists}
+    # Create a list representation of teams for the response
+    def create_team_list(team: Dict[str, Optional[Player]]):
+        return [
+            {"name": player.name, "rank": player.rank, "assigned_role": role}
+            for role, player in team.items() if player
+        ]
 
+    team1_list = create_team_list(team1)
+    team2_list = create_team_list(team2)
 
-# Example usage
-example_request = {
-    "players": [
-        {"name": "Merlin", "rank": "Emerald2", "role1": "Mid", "role2": "Jungle", "notPlay": "Support"},
-        {"name": "Reni", "rank": "Emerald3", "role1": "Adc", "role2": "Top", "notPlay": "Jungle"},
-        {"name": "Indi", "rank": "Diamond4", "role1": "Jungle", "role2": "Top", "notPlay": ""},
-        {"name": "Mäc", "rank": "Bronze4", "role1": "Support", "role2": "Jungle", "notPlay": ""},
-        {"name": "Aaron", "rank": "Emerald1", "role1": "Top", "role2": "Jungle", "notPlay": ""},
-        {"name": "Joey", "rank": "Gold3", "role1": "Support", "role2": "Mid", "notPlay": "Jungle"},
-        {"name": "Arno", "rank": "Silver3", "role1": "Support", "role2": "Adc", "notPlay": "Jungle"},
-        {"name": "Sandy", "rank": "Master", "role1": "Mid", "role2": "Jungle", "notPlay": "Top"},
-        {"name": "Albo", "rank": "Platinum1", "role1": "Adc", "role2": "Mid", "notPlay": ""},
-        {"name": "Chruune", "rank": "Diamond4", "role1": "Support", "role2": "Top", "notPlay": "Adc"},
-    ],
-    "roles": ["Top", "Jungle", "Mid", "Adc", "Support"],
-    "mode": "Rank"
-}
-
-# Uncomment the following lines to test the function
-# import asyncio
-# response = asyncio.run(create_teams(example_request))
-# print(response)
+    # Print the final teams
+    print("Sorted players:", [{"name": player.name, "rank": player.rank, "rank_value": player.rank_value} for player in players if player])
+    print("Final Team 1:", team1_list)
+    print("Final Team 2:", team2_list)
+    
+    return {
+        "sorted_players": [{"name": player.name, "rank": player.rank, "rank_value": player.rank_value} for player in players if player],
+        "team1": team1_list,
+        "team2": team2_list
+    }
