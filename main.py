@@ -14,10 +14,10 @@ limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI()
 
-# Add CORS middleware with updated settings to allow requests from your frontend
+# Add CORS middleware with updated settings to allow requests only from your frontend URL
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Ensure this matches exactly with your frontend URL
+    allow_origins=["https://stackmaker.ffgang.ch"],  # Replace with your frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
