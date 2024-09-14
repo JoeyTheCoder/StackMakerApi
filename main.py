@@ -41,7 +41,7 @@ rank_mapping = {
 
 @app.get("/")
 def create_greeting():
-    greeting = "Connected to StackMaker API Version 1.00"
+    greeting = "Connected to StackMaker API Version 1.01"
     return greeting
 
 def fill_missing_roles(team1, team2, players, roles):
