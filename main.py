@@ -17,7 +17,7 @@ app = FastAPI()
 # Add CORS middleware with updated settings to allow requests from your frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://stackmaker.ffgang.ch"],  # Ensure this matches exactly with your frontend URL
+    allow_origins=["*"],  # Ensure this matches exactly with your frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -73,7 +73,7 @@ def sanitize_inputs(player: Player) -> Player:
 @app.get("/")
 @limiter.limit("10/minute")
 def create_greeting(request: Request):
-    greeting = "Connected to StackMaker API Version 1.01"
+    greeting = "Connected to StackMaker API Version 1.10"
     return greeting
 
 # Create teams endpoint with dynamic team creation
