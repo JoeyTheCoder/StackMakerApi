@@ -14,10 +14,10 @@ limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI()
 
-# Add CORS middleware with restricted origin
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://stackmaker.ffgang.ch"],  # Restrict to your specific frontend URL
+    allow_origins=["https://stackmaker.ffgang.ch"],  # Ensure this matches exactly with your frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -41,8 +41,8 @@ rank_mapping = {
 }
 
 class Player(BaseModel):
-    name: constr(strip_whitespace=True, min_length=1, max_length=50, pattern=r"^[a-zA-Z0-9äöüÄÖÜß\s\-\!\@\#\$\%\^\&\*\(\)]+$")
-    rank: constr(strip_whitespace=True, regex=r"^(Iron|Bronze|Silver|Gold|Platinum|Emerald|Diamond) \d|Master|Grandmaster|Challenger$")
+    name: constr(strip_whitespace=True, min_length=1, max_length=50, pattern=r"^[a-zA-ZäöüÄÖÜß\s\-]+$")
+    rank: constr(strip_whitespace=True, pattern=r"^(Iron|Bronze|Silver|Gold|Platinum|Emerald|Diamond) \d|Master|Grandmaster|Challenger$")
     role1: constr(strip_whitespace=True, min_length=1, max_length=20)
     role2: constr(strip_whitespace=True, min_length=1, max_length=20)
     cant_play: Optional[constr(strip_whitespace=True, min_length=1, max_length=20)] = None
@@ -54,6 +54,7 @@ class Player(BaseModel):
         if v not in valid_ranks:
             raise ValueError(f'Invalid rank: {v}')
         return v
+
 
 class TeamRequest(BaseModel):
     players: List[Player]
