@@ -136,7 +136,7 @@ def distribute_players_among_teams(teams, players, roles, mode):
         # Attempt to assign the player to the most prioritized role in the team
         assigned = False
         for role in role_priority:
-            if assign_player_with_priority(team, player, role):
+            if role in team and assign_player_with_priority(team, player, role):
                 assigned = True
                 break
         # If not assigned to priority roles, add to unassigned
@@ -146,6 +146,11 @@ def distribute_players_among_teams(teams, players, roles, mode):
     # Fill missing roles for each team
     for team in teams:
         fill_missing_roles(team, unassigned_players, roles)
+
+    # Ensure all players are accounted for by re-checking unassigned players
+    if unassigned_players:
+        print("Warning: Unassigned players remaining:", [p.name for p in unassigned_players])
+
 
 def distribute_balanced_teams(teams, players):
     # Distribute players between all teams in a balanced way
@@ -158,9 +163,19 @@ def distribute_balanced_teams(teams, players):
         sums[min_team_index] += player.rank_value
 
     # Assign players to roles in their respective teams
-    for team, players in zip(teams, team_players):
-        for player in players:
-            assign_player_with_priority(team, player, player.role1) or assign_player_with_priority(team, player, player.role2)
+    for team, team_player_list in zip(teams, team_players):
+        unassigned_players = []
+        for player in team_player_list:
+            assigned = assign_player_with_priority(team, player, player.role1) or assign_player_with_priority(team, player, player.role2)
+            if not assigned:
+                unassigned_players.append(player)
+        fill_missing_roles(team, unassigned_players, roles)
+
+    # Ensure no players are left unaccounted
+    remaining_unassigned = [p for team_players_list in team_players for p in team_players_list if p not in team.values()]
+    if remaining_unassigned:
+        print("Remaining unassigned players after balanced distribution:", [p.name for p in remaining_unassigned])
+
 
 def create_team_list(team):
     return [
@@ -190,14 +205,19 @@ def fill_missing_roles(team, unassigned_players, roles):
     """
     for role in roles:
         if role not in team or team[role] is None:  # Check if the role exists and is unassigned
-            assign_to_role(unassigned_players, team, role)
+            assigned = assign_to_role(unassigned_players, team, role)
+            if not assigned:
+                print(f"Unable to assign any player to role: {role}")
+
 
 def assign_to_role(unassigned_players, team, role):
     for player in unassigned_players:
-        if role != player.cant_play:
+        if role != player.cant_play and player not in team.values():
             team[role] = player
-            unassigned_players.remove(player)
-            break
+            unassigned_players.remove(player)  # Remove the player correctly
+            return True
+    return False
+
 
 def reevaluate_and_swap_roles(team, players, roles):
     for role in roles:
