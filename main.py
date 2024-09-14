@@ -41,8 +41,8 @@ rank_mapping = {
 }
 
 class Player(BaseModel):
-    name: constr(strip_whitespace=True, min_length=1, max_length=50, regex=r"^[a-zA-ZäöüÄÖÜß\s\-]+$")
-    rank: constr(strip_whitespace=True, regex=r"^(Iron|Bronze|Silver|Gold|Platinum|Emerald|Diamond) \d|Master|Grandmaster|Challenger$")
+    name: constr(strip_whitespace=True, min_length=1, max_length=50, pattern=r"^[a-zA-ZäöüÄÖÜß\s\-]+$")
+    rank: constr(strip_whitespace=True, pattern=r"^(Iron|Bronze|Silver|Gold|Platinum|Emerald|Diamond) \d|Master|Grandmaster|Challenger$")
     role1: constr(strip_whitespace=True, min_length=1, max_length=20)
     role2: Optional[constr(strip_whitespace=True, min_length=0, max_length=20)] = ""  # Allow role2 to be empty
     cant_play: Optional[constr(strip_whitespace=True, min_length=1, max_length=20)] = None
@@ -59,7 +59,7 @@ class Player(BaseModel):
 class TeamRequest(BaseModel):
     players: List[Player]
     roles: List[constr(strip_whitespace=True, min_length=1, max_length=20)]
-    mode: constr(strip_whitespace=True, regex=r"^(rank|balanced|random)$")
+    mode: constr(strip_whitespace=True, pattern=r"^(rank|balanced|random)$")
 
 def sanitize_inputs(player: Player) -> Player:
     player.name = bleach.clean(player.name)
