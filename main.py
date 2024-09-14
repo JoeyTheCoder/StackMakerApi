@@ -40,7 +40,7 @@ rank_mapping = {
 
 @app.get("/")
 def create_greeting():
-    greeting = "FFG StackMaker"
+    greeting = "Connected to StackMaker API Version 1.00"
     return greeting
 
 # Function to ensure all roles are filled in both teams
