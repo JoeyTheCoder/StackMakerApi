@@ -17,7 +17,7 @@ app = FastAPI()
 # Add CORS middleware with updated settings to allow requests from your frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://stackmaker.ffgang.ch"],  # Update this to your frontend URL
+    allow_origins=["https://stackmaker.ffgang.ch"],  # Ensure this matches exactly with your frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
