@@ -55,11 +55,11 @@ class Player(BaseModel):
             raise ValueError(f'Invalid rank: {v}')
         return v
 
-
 class TeamRequest(BaseModel):
     players: List[Player]
     roles: List[constr(strip_whitespace=True, min_length=1, max_length=20)]
-    mode: constr(strip_whitespace=True, regex=r"^(rank|balanced|random)$")
+    mode: constr(strip_whitespace=True, pattern=r"^(rank|balanced|random)$")  # Use `pattern` here
+
 
 def sanitize_inputs(player: Player) -> Player:
     player.name = bleach.clean(player.name)
