@@ -41,7 +41,7 @@ rank_mapping = {
 }
 
 class Player(BaseModel):
-    name: constr(strip_whitespace=True, min_length=1, max_length=50, pattern=r"^[a-zA-ZäöüÄÖÜß\s\-]+$")
+    name: constr(strip_whitespace=True, min_length=1, max_length=50, pattern=r"^[\wäöüÄÖÜß\s\-\!\@\#\$\%\^\&\*\(\)\[\]\{\}\:\;\,\.\?\~]+$")
     rank: constr(strip_whitespace=True, pattern=r"^(Iron|Bronze|Silver|Gold|Platinum|Emerald|Diamond) \d|Master|Grandmaster|Challenger$")
     role1: constr(strip_whitespace=True, min_length=1, max_length=20)
     role2: constr(strip_whitespace=True, min_length=1, max_length=20)
