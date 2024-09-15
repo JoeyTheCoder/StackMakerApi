@@ -85,84 +85,52 @@ async def create_teams(request: Request, team_request: TeamRequest):
     for player in players:
         player.rank_value = rank_mapping.get(player.rank, 0)
 
-    # Determine the number of teams needed
+    # Calculate the number of teams required based on the number of players
     max_players_per_team = len(roles)  # Each team should have exactly one of each role
     num_teams = (len(players) + max_players_per_team - 1) // max_players_per_team
 
-    # Create empty teams dynamically based on the number of teams required
+    # Create the necessary number of empty teams
     teams = [{role: None for role in roles} for _ in range(num_teams)]
 
-    # Distribute players among teams based on the selected mode
+    # Use the exact logic from the previous correct implementation
     if mode == 'rank':
         players.sort(key=lambda x: x.rank_value, reverse=True)
-        distribute_players_among_teams(teams, players, roles)
+        assign_players_to_teams(players, teams, roles)
 
     elif mode == 'random':
         random.shuffle(players)
-        distribute_players_among_teams(teams, players, roles)
+        assign_players_to_teams(players, teams, roles)
 
     elif mode == 'balanced':
         players.sort(key=lambda x: x.rank_value, reverse=True)
-        distribute_balanced_teams(teams, players)
+        balanced_assign(players, teams, roles)
 
-    # Convert teams to lists for the response
+    # Convert each team to a list format for the response
     teams_list = [create_team_list(team) for team in teams]
 
     print("Sorted players:", [{"name": player.name, "rank": player.rank, "rank_value": player.rank_value} for player in players if player])
     for i, team in enumerate(teams_list, start=1):
         print(f"Final Team {i}:", team)
-    
+
     return {
         "teams": teams_list
     }
 
-def distribute_players_among_teams(teams, players, roles):
-    team_size = len(teams[0])  # Number of roles per team
-
-    unassigned_players = []
-
-    # Assign players based on their rank and role priority
-    for i, player in enumerate(players):
-        team_index = i % len(teams)  # Round-robin assignment to distribute evenly among teams
-        team = teams[team_index]
-        assigned = assign_player_with_priority(team, player, player.role1)
-
-        if not assigned:
-            assigned = assign_player_with_priority(team, player, player.role2)
-
-        if not assigned:
-            unassigned_players.append(player)
-
-    # Fill missing roles for each team
+def assign_players_to_teams(players, teams, roles):
+    # Logic remains as is, assigning players based on their preferred roles
+    for team_index, team in enumerate(teams):
+        # Assign first set of players to the first team, second set to the next, and so on.
+        for player in players[team_index::len(teams)]:
+            if not assign_player_with_priority(team, player, player.role1):
+                assign_player_with_priority(team, player, player.role2)
+    # Fill any missing roles in each team
+    unassigned_players = [p for p in players if not any(p in team.values() for team in teams)]
     for team in teams:
-        fill_missing_roles(team, unassigned_players, roles)
-
-    # Ensure all players are accounted for by re-checking unassigned players
-    if unassigned_players:
-        print("Warning: Unassigned players remaining:", [p.name for p in unassigned_players])
-
-def distribute_balanced_teams(teams, players):
-    # Distribute players between all teams in a balanced way
-    team_players = [[] for _ in teams]
-    sums = [0] * len(teams)
-
-    for player in players:
-        min_team_index = sums.index(min(sums))
-        team_players[min_team_index].append(player)
-        sums[min_team_index] += player.rank_value
-
-    # Assign players to roles in their respective teams
-    for team, team_player_list in zip(teams, team_players):
-        unassigned_players = []
-        for player in team_player_list:
-            assigned = assign_player_with_priority(team, player, player.role1) or assign_player_with_priority(team, player, player.role2)
-            if not assigned:
-                unassigned_players.append(player)
         fill_missing_roles(team, unassigned_players, roles)
 
 def fill_missing_roles(team, unassigned_players, roles):
     for role in roles:
-        if role not in team or team[role] is None:  # Check if the role exists and is unassigned
+        if team[role] is None:  # Check if the role is unassigned
             assigned = assign_to_role(unassigned_players, team, role)
             if not assigned:
                 print(f"Unable to assign any player to role: {role}")
@@ -175,17 +143,24 @@ def assign_to_role(unassigned_players, team, role):
             return True
     return False
 
-def reevaluate_and_swap_roles(team, players, roles):
-    for role in roles:
-        assigned_player = team.get(role)
-        for player in players:
-            if player and player.rank_value > (assigned_player.rank_value if assigned_player else 0):
-                if (player.role1 == role or player.role2 == role) and player not in team.values():
-                    unassigned_player = team[role]
-                    team[role] = player
-                    players.append(unassigned_player)
-                    players.remove(player)
-                    break
+def balanced_assign(players, teams, roles):
+    team_players = [[] for _ in teams]
+    sums = [0] * len(teams)
+
+    # Distribute players evenly across teams
+    for player in players:
+        min_team_index = sums.index(min(sums))
+        team_players[min_team_index].append(player)
+        sums[min_team_index] += player.rank_value
+
+    # Assign players to roles
+    for team, team_player_list in zip(teams, team_players):
+        unassigned_players = []
+        for player in team_player_list:
+            if not assign_player_with_priority(team, player, player.role1):
+                if not assign_player_with_priority(team, player, player.role2):
+                    unassigned_players.append(player)
+        fill_missing_roles(team, unassigned_players, roles)
 
 def assign_player_with_priority(team, player, role):
     if not team[role]:
