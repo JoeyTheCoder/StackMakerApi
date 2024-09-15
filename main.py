@@ -166,20 +166,15 @@ def distribute_balanced_teams(teams, players):
     for team, team_player_list in zip(teams, team_players):
         unassigned_players = []
         for player in team_player_list:
-            # Attempt to assign to prioritized roles
             assigned = assign_player_with_priority(team, player, player.role1) or assign_player_with_priority(team, player, player.role2)
             if not assigned:
                 unassigned_players.append(player)
+        fill_missing_roles(team, unassigned_players, roles)
 
-        # Fill any missing roles with remaining unassigned players
-        fill_missing_roles(team, unassigned_players, list(team.keys()))
-
-    # Check if any players are still unassigned and handle gracefully
-    remaining_unassigned = [p for team_list in team_players for p in team_list if p not in team.values()]
+    # Ensure no players are left unaccounted
+    remaining_unassigned = [p for team_players_list in team_players for p in team_players_list if p not in team.values()]
     if remaining_unassigned:
         print("Remaining unassigned players after balanced distribution:", [p.name for p in remaining_unassigned])
-        # Optional: Redistribute or log an error/warning
-
 
 
 def create_team_list(team):
