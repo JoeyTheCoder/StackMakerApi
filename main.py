@@ -8,7 +8,6 @@ from slowapi.util import get_remote_address
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 import random
 import bleach
-import math
 
 # Initialize the limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -86,7 +85,7 @@ async def create_teams(request: Request, team_request: TeamRequest):
     for player in players:
         player.rank_value = rank_mapping.get(player.rank, 0)
 
-    num_teams = math.ceil(len(players) / len(roles))
+    num_teams = (len(players) + len(roles) - 1) // len(roles)
     teams: List[Dict[str, Optional[Player]]] = [{role: None for role in roles} for _ in range(num_teams)]
 
     if mode == 'rank':
