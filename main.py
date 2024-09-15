@@ -8,6 +8,7 @@ from slowapi.util import get_remote_address
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 import random
 import bleach
+import math
 
 # Initialize the limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -85,36 +86,60 @@ async def create_teams(request: Request, team_request: TeamRequest):
     for player in players:
         player.rank_value = rank_mapping.get(player.rank, 0)
 
-    # Calculate the number of teams required based on the number of players
-    max_players_per_team = len(roles)  # Each team should have exactly one of each role
-    num_teams = (len(players) + max_players_per_team - 1) // max_players_per_team
+    num_teams = math.ceil(len(players) / len(roles))
+    teams: List[Dict[str, Optional[Player]]] = [{role: None for role in roles} for _ in range(num_teams)]
 
-    # Create the necessary number of empty teams
-    teams = [{role: None for role in roles} for _ in range(num_teams)]
-
-    # Use the exact logic from the previous correct implementation
     if mode == 'rank':
         players.sort(key=lambda x: x.rank_value, reverse=True)
-        assign_players_to_teams(players, teams, roles)
+        assign_players_to_multiple_teams(players, teams, roles)
 
     elif mode == 'random':
         random.shuffle(players)
-        assign_players_to_teams(players, teams, roles)
+        assign_players_to_multiple_teams(players, teams, roles)
 
     elif mode == 'balanced':
         players.sort(key=lambda x: x.rank_value, reverse=True)
-        balanced_assign(players, teams, roles)
+        balanced_teams = balance_multiple_teams(players, num_teams)
+        for i, team_players in enumerate(balanced_teams):
+            assign_players_to_teams(team_players, teams[i], teams[(i+1) % num_teams], roles)
 
-    # Convert each team to a list format for the response
-    teams_list = [create_team_list(team) for team in teams]
+    fill_missing_roles_multiple_teams(teams, players, roles)
+
+    team_lists = [create_team_list(team) for team in teams]
 
     print("Sorted players:", [{"name": player.name, "rank": player.rank, "rank_value": player.rank_value} for player in players if player])
-    for i, team in enumerate(teams_list, start=1):
-        print(f"Final Team {i}:", team)
-
+    for i, team_list in enumerate(team_lists):
+        print(f"Final Team {i+1}:", team_list)
+    
     return {
-        "teams": teams_list
+        "teams": team_lists
     }
+
+def assign_players_to_multiple_teams(players, teams, roles):
+    for i, player in enumerate(players):
+        team_index = i % len(teams)
+        if player and not assign_player_with_priority(teams[team_index], player, player.role1):
+            assign_player_with_priority(teams[team_index], player, player.role2)
+    for team in teams:
+        reevaluate_and_swap_roles(team, players, roles)
+
+def fill_missing_roles_multiple_teams(teams, players, roles):
+    unassigned_players = [p for p in players if not any(p in team.values() for team in teams)]
+    for team in teams:
+        for role in roles:
+            if not team[role]:
+                assign_to_role(unassigned_players, team, role)
+
+def balance_multiple_teams(players, num_teams):
+    balanced_teams = [[] for _ in range(num_teams)]
+    team_sums = [0] * num_teams
+
+    for player in players:
+        min_sum_index = team_sums.index(min(team_sums))
+        balanced_teams[min_sum_index].append(player)
+        team_sums[min_sum_index] += player.rank_value
+
+    return balanced_teams
 
 def assign_players_to_teams(players, teams, roles):
     # Logic remains as is, assigning players based on their preferred roles
