@@ -111,10 +111,9 @@ async def create_teams(request: Request, team_request: TeamRequest):
     print("Final Team 1:", team1_list)
     print("Final Team 2:", team2_list)
     
+    # Ensure the response format matches what the frontend expects
     return {
-        "sorted_players": [{"name": player.name, "rank": player.rank, "rank_value": player.rank_value} for player in players if player],
-        "team1": team1_list,
-        "team2": team2_list
+        "teams": [team1_list, team2_list]
     }
 
 def assign_players_to_teams(players, team1, team2, roles):
