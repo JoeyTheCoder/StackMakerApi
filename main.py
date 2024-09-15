@@ -121,9 +121,9 @@ async def create_teams(request: Request, team_request: TeamRequest):
 
 def distribute_players_among_teams(teams, players, roles, mode):
     team_size = len(teams[0])  # Assuming all teams have the same role structure
-
     unassigned_players = []
 
+    # Step 1: Attempt to assign players based on their primary role first
     for i, player in enumerate(players):
         team_index = i // team_size
         if team_index >= len(teams):
@@ -131,23 +131,25 @@ def distribute_players_among_teams(teams, players, roles, mode):
             continue
 
         team = teams[team_index]
-        role_priority = [player.role1, player.role2]
+        assigned = assign_player_with_priority(team, player, player.role1)
+        
+        # If not assigned, try secondary role
+        if not assigned:
+            assigned = assign_player_with_priority(team, player, player.role2)
 
-        # Attempt to assign the player to the most prioritized role in the team
-        assigned = False
-        for role in role_priority:
-            if role in team and assign_player_with_priority(team, player, role):
-                assigned = True
-                break
-        # If not assigned to priority roles, add to unassigned
+        # If still not assigned, mark as unassigned
         if not assigned:
             unassigned_players.append(player)
 
-    # Fill missing roles for each team
+    # Step 2: Fill missing roles for each team
     for team in teams:
         fill_missing_roles(team, unassigned_players, roles)
 
-    # Ensure all players are accounted for by re-checking unassigned players
+    # Step 3: Re-evaluate and swap roles if necessary
+    for i, team in enumerate(teams):
+        reevaluate_and_swap_roles(team, unassigned_players, roles)
+
+    # Ensure all players are accounted for
     if unassigned_players:
         print("Warning: Unassigned players remaining:", [p.name for p in unassigned_players])
 
