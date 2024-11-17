@@ -45,10 +45,10 @@ rank_mapping = {
 
 class Player(BaseModel):
     name: constr(strip_whitespace=True, min_length=1, max_length=50) = Field(
-        regex=r"^[\wäöüÄÖÜß\s\-\!\@\#\$\%\^\&\*\(\)\[\]\{\}\:\;\,\.\?\~]+$"
+        pattern=r"^[\wäöüÄÖÜß\s\-\!\@\#\$\%\^\&\*\(\)\[\]\{\}\:\;\,\.\?\~]+$"
     )
     rank: constr(strip_whitespace=True) = Field(
-        regex=r"^(Iron|Bronze|Silver|Gold|Platinum|Emerald|Diamond) \d|Master|Grandmaster|Challenger$"
+        pattern=r"^(Iron|Bronze|Silver|Gold|Platinum|Emerald|Diamond) \d|Master|Grandmaster|Challenger$"
     )
     role1: constr(strip_whitespace=True, min_length=1, max_length=20)
     role2: constr(strip_whitespace=True, min_length=1, max_length=20)
@@ -66,7 +66,7 @@ class TeamRequest(BaseModel):
     players: List[Player]
     roles: List[constr(strip_whitespace=True, min_length=1, max_length=20)]
     mode: constr(strip_whitespace=True) = Field(
-        regex=r"^(rank|balanced|random)$"
+        pattern=r"^(rank|balanced|random)$"
     )
 
 def sanitize_inputs(player: Player) -> Player:
