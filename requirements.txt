@@ -36,3 +36,4 @@ websockets==12.0
 bleach==6.0.0
 slowapi==0.1.4
 ortools==9.7.2996
+pandas==2.1.2
