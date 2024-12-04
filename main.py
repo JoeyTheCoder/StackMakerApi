@@ -20,7 +20,7 @@ app = FastAPI()
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://stackmaker.ffgang.ch", "http://localhost:4200"],  # Include localhost for testing
+    allow_origins=["*"],  # Include localhost for testing
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
